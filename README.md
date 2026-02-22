@@ -1,138 +1,117 @@
 # hwpx-ts
 
-한글 워드프로세서 HWPX 문서를 읽고, 편집, 자동화하기 위한 TypeScript 라이브러리 모음입니다.
+한글 워드프로세서 HWPX 문서를 TypeScript로 읽고, 수정하고, 자동화하기 위한 모노레포입니다.
 
-## 개요
+## 한눈에 보기
 
-`hwpx-ts`는 한컴 오피스 HWPX 문서 형식을 완벽하게 지원하는 TypeScript/React 도구 세트입니다. OPC 컨테이너 기반의 HWPX 파일을 메모리에 로드하고, 문단·표·이미지·포맷 정보를 조회 및 수정한 뒤 다시 저장할 수 있습니다. 또한 React 기반의 에디터 UI 컴포넌트 라이브러리를 제공하여 웹 애플리케이션에 한글 워드프로세서 경험을 쉽게 구현할 수 있습니다.
+- **핵심 라이브러리**: `@ubermensch1218/hwpxcore` (문서 파싱/편집/저장)
+- **React 에디터 UI**: `@ubermensch1218/hwpxeditor`
+- **MCP 서버**: `@ubermensch1218/hwpx-mcp` (LLM 도구 연동)
+- **보조 도구**: `@ubermensch1218/hwpx-tools`, `@ubermensch1218/hwpx-cli`
 
-## 패키지
+## 빠른 시작
 
-이 모노레포는 두 개의 주요 패키지로 구성되어 있습니다.
+### 1) 라이브러리로 문서 편집하기 (`hwpxcore`)
 
-| 패키지 | 설명 | npm |
-|--------|------|-----|
-| **@ubermensch1218/hwpxcore** | HWPX 문서 읽기/편집 TypeScript 라이브러리 | [![npm version](https://img.shields.io/npm/v/@ubermensch1218/hwpxcore.svg)](https://www.npmjs.com/package/@ubermensch1218/hwpxcore) |
-| **@ubermensch1218/hwpxeditor** | React 에디터 UI 컴포넌트 라이브러리 | [![npm version](https://img.shields.io/npm/v/@ubermensch1218/hwpxeditor.svg)](https://www.npmjs.com/package/@ubermensch1218/hwpxeditor) |
-
-### @ubermensch1218/hwpxcore
-
-HWPX 문서 조작을 위한 핵심 라이브러리입니다.
-
-**주요 기능:**
-- HWPX 파일 열기/저장
-- 섹션, 문단, 표, 이미지 관리
-- 문자 및 문단 포맷 속성 편집
-- 메모 추가
-- 헤더 정보(스타일, 글꼴, 테두리/채우기 등) 접근
-
-**설치:**
 ```bash
 npm install @ubermensch1218/hwpxcore
 ```
 
-**빠른 시작:**
-```typescript
-import { HwpxDocument } from '@ubermensch1218/hwpxcore';
+```ts
+import { HwpxDocument } from "@ubermensch1218/hwpxcore";
 
-// 문서 열기
-const buffer = await fetch('document.hwpx').then(r => r.arrayBuffer());
+const buffer = await fetch("document.hwpx").then((r) => r.arrayBuffer());
 const doc = await HwpxDocument.open(new Uint8Array(buffer));
 
-// 문단 읽기
-for (const section of doc.sections) {
-  for (const para of section.paragraphs) {
-    console.log(para.text);
-  }
-}
+doc.addParagraph("추가된 문단");
 
-// 문단 추가
-doc.addParagraph('새 문단');
-
-// 저장
-const bytes = await doc.save();
-
-// 저장 목적지별 API
-const bytes2 = await doc.saveToBuffer();
+const bytes = await doc.saveToBuffer();
 const blob = await doc.saveToBlob();
-await doc.saveToPath('./out.hwpx');
+await doc.saveToPath("./out.hwpx");
 ```
 
-### 호환성/검증 포인트
+### 2) React 에디터 붙이기 (`hwpxeditor`)
 
-- HWPX ZIP 저장 시 `mimetype`를 첫 엔트리 + 무압축(STORE)으로 처리합니다.
-- XML 직렬화에서 HWPX 네임스페이스 접두사(`hp`, `hs`, `hc`, `hh`)를 우선 사용합니다.
-- 비표준 container/manifest 구조를 만났을 때 fallback 경고 핸들러를 통해 진단 정보를 받을 수 있습니다.
-
-### @ubermensch1218/hwpxeditor
-
-한글 워드프로세서 스타일의 React 에디터 컴포넌트입니다.
-
-**주요 기능:**
-- 리본 툴바 (Ribbon toolbar)
-- 문자/문단 포맷 사이드바
-- 수평 자 (Horizontal ruler)
-- WYSIWYG 페이지 편집
-- 테이블, 이미지 지원
-
-**설치:**
 ```bash
 npm install @ubermensch1218/hwpxeditor react react-dom
 ```
 
-**빠른 시작:**
-```typescript
-import { Editor } from '@ubermensch1218/hwpxeditor';
+```tsx
+import { Editor } from "@ubermensch1218/hwpxeditor";
 
 export default function App() {
   return <Editor />;
 }
 ```
 
-자세한 사용법은 각 패키지의 README를 참고하세요:
-- [hwpxcore README](./packages/hwpx-core/README.md)
-- [hwpxeditor README](./packages/hwpx-editor/README.md)
+### 3) MCP로 LLM에 HWPX 도구 제공하기 (`hwpx-mcp`)
 
-## 개발 설정
+```bash
+npx @ubermensch1218/hwpx-mcp
+```
 
-이 프로젝트는 pnpm 워크스페이스 모노레포입니다.
+Claude Desktop 예시:
 
-### 설치
+```json
+{
+  "mcpServers": {
+    "hwpx": {
+      "command": "npx",
+      "args": ["@ubermensch1218/hwpx-mcp"]
+    }
+  }
+}
+```
+
+제공 도구: `hwpx_read`, `hwpx_export`, `hwpx_extract_xml`, `hwpx_info`
+
+## 패키지 목록
+
+| 패키지 | 설명 | npm |
+|---|---|---|
+| `@ubermensch1218/hwpxcore` | HWPX 읽기/편집 핵심 라이브러리 | [npm](https://www.npmjs.com/package/@ubermensch1218/hwpxcore) |
+| `@ubermensch1218/hwpxeditor` | React 기반 한글 스타일 에디터 UI | [npm](https://www.npmjs.com/package/@ubermensch1218/hwpxeditor) |
+| `@ubermensch1218/hwpx-mcp` | MCP 서버 (LLM 연동용) | - |
+| `@ubermensch1218/hwpx-tools` | 변환/내보내기 유틸리티 | - |
+| `@ubermensch1218/hwpx-cli` | CLI 도구 | - |
+
+## 호환성 포인트
+
+- ZIP 저장 시 `mimetype`를 **첫 엔트리 + 무압축(STORE)** 으로 유지
+- XML 직렬화 시 HWPX 네임스페이스 접두사(`hp`, `hs`, `hc`, `hh`) 우선
+- container/manifest가 비표준일 때 fallback 경고 핸들러 제공
+
+## LLM/에이전트 안내
+
+- AI 친화 요약 문서는 루트 `llms.txt`를 참고하세요.
+- `llms.txt`에는 `hwpxcore`/`hwpx-mcp` 기준의 추천 API, 제약, 예제가 정리되어 있습니다.
+
+## 개발
 
 ```bash
 pnpm install
 ```
 
-### 빌드
+주요 검증 명령:
 
 ```bash
-pnpm run build
+pnpm --filter @ubermensch1218/hwpxcore test
+pnpm --filter @ubermensch1218/hwpxcore typecheck
+pnpm --filter @ubermensch1218/hwpxcore build
 ```
 
-### 개발 모드
-
-각 패키지별로 개발 모드를 실행할 수 있습니다:
+워크스페이스 테스트(패키지별):
 
 ```bash
-# hwpxcore 개발 모드
-pnpm --filter @ubermensch1218/hwpxcore run dev
-
-# hwpxeditor 개발 모드 (Next.js 데모 앱)
-pnpm --filter @ubermensch1218/hwpxeditor run dev
+pnpm --filter @ubermensch1218/hwpx-tools test
+pnpm --filter @ubermensch1218/hwpx-mcp exec vitest run --passWithNoTests
 ```
 
-### 테스트
+세부 문서:
 
-```bash
-pnpm run test
-```
-
-## 저장소
-
-GitHub: https://github.com/ubermensch1218/hwpx-ts
+- `packages/hwpx-core/README.md`
+- `packages/hwpx-editor/README.md`
 
 ## 라이선스
 
-Non-Commercial License - 비상업적 용도로 자유롭게 사용, 수정, 배포할 수 있습니다. 상업적 사용은 별도 협의가 필요합니다.
-
-자세한 내용은 [LICENSE](./LICENSE) 파일을 참고하세요.
+Non-Commercial License. 자세한 내용은 `LICENSE`를 참고하세요.
