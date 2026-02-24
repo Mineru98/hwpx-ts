@@ -2,6 +2,10 @@
 
 `python-hwpx`는 HWPX 문서를 읽고 편집하고 생성하는 파이썬 도구 모음입니다. 이 사이트는 파이썬 코드 예제를 중심으로 빠르게 실무에 적용할 수 있는 사용법을 안내합니다. 먼저 "5분 안에 문서 열기" 예제를 따라 한 뒤, 필요에 따라 설치, 사용 가이드, 참조 문서를 살펴보세요.
 
+```{important}
+TypeScript/Node.js 사용자는 루트 `README.md`와 `packages/*/README.md`를 먼저 참고하세요. 이 `docs/` 사이트는 현재 Python 워크플로 중심으로 작성되어 있습니다.
+```
+
 ```{toctree}
 :maxdepth: 2
 :hidden:

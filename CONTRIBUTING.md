@@ -1,35 +1,46 @@
 # 기여 안내
 
-**python-hwpx** 개선에 관심 가져주셔서 감사합니다! 이 문서는 현재 개발 및 테스트
-흐름을 간단히 설명하여 새로운 기여자가 빠르게 생산성을 낼 수 있도록 돕습니다.
-코드베이스가 성장함에 따라 절차는 변경될 수 있으니, 더 나은 방식이 발견되면
-주저 말고 이 문서를 확장하거나 수정해 주세요.
+**hwpx-ts**에 기여해 주셔서 감사합니다. 이 문서는 TypeScript 모노레포 기준으로
+로컬 개발 환경을 빠르게 준비하고, PR 전에 반드시 확인할 점을 정리합니다.
 
 ## 개발 워크플로우
 
-1. **저장소를 포크하고 클론**한 뒤, 변경 범위를 반영한 기능 브랜치를 만드세요.
-2. **가상 환경을 설정**합니다 (Python 3.11 이상 권장) 그리고 활성화하세요:
-  ```bash
-  python -m venv .venv
-  source .venv/bin/activate  # Windows에서는: .venv\Scripts\activate
-  python -m pip install --upgrade pip
-  ```
-3. **개발 도구를 설치**합니다. 배포 메타데이터가 `pyproject.toml`에 정의되어 있어
-  편집 가능한 설치로 개발 의존성을 한 번에 구성할 수 있습니다:
-  ```bash
-  python -m pip install -e .[dev]
-  ```
-4. **임포트 확인**. `pip install -e`를 실행하면 `hwpx` 패키지가 가상 환경에
-  설치되어 추가적인 `PYTHONPATH` 설정이 필요 없습니다. 인터프리터에서
-  `import hwpx`가 정상적으로 동작하는지 확인하세요.
+1. 저장소를 포크/클론한 뒤 기능 브랜치를 만듭니다.
+2. Node.js 20+와 pnpm 10을 준비합니다.
+3. 루트에서 의존성을 설치합니다.
 
+```bash
+corepack enable
+pnpm install
+```
 
-## 풀 리퀘스트 체크리스트
+4. 변경한 패키지 기준으로 검증을 실행합니다.
 
-- 동작이 변경되거나 새 모듈이 추가될 때는 문서(이 파일 포함)를 업데이트하세요.
-- 리뷰를 쉽게 하기 위해 PR 설명에 관련 DevDoc 섹션 및 외부 명세를 참조하세요.
-- 커밋은 집중적이고 설명적으로 유지하세요; 가능한 경우 관련 이슈 번호를 적어주세요.
-- 풀 리퀘스트를 열기 전에 작업 트리가 깨끗한지(`git status`) 확인하세요.
+```bash
+# core 패키지 기본 검증
+pnpm --filter @ubermensch1218/hwpxcore typecheck
+pnpm --filter @ubermensch1218/hwpxcore test
+pnpm --filter @ubermensch1218/hwpxcore build
+```
 
-오타 수정부터 새 파서 추가까지 모든 기여를 환영합니다. HWPX 생태계를 위한
-더 나은 도구를 함께 만들어 주셔서 감사합니다!
+```bash
+# editor/mcp/cli/tools를 수정했다면 해당 패키지도 같은 방식으로 검증
+pnpm --filter @ubermensch1218/hwpxeditor build
+pnpm --filter @ubermensch1218/hwpx-mcp test
+pnpm --filter @ubermensch1218/hwpx-cli build
+pnpm --filter @ubermensch1218/hwpx-tools build
+```
+
+## PR 체크리스트
+
+- 동작이 바뀌면 관련 문서(README, 패키지 README, 필요 시 docs)도 함께 업데이트합니다.
+- 커밋은 작고 명확하게 유지하고, PR 설명에는 변경 이유와 검증 명령을 포함합니다.
+- PR 전에 `git status`로 불필요한 파일이 섞이지 않았는지 확인합니다.
+
+## 문서 경로 안내
+
+- TypeScript 사용법은 루트 `README.md`와 `packages/*/README.md`가 기준입니다.
+- `docs/`는 현재 Sphinx 기반 문서 파이프라인이므로, 예제가 Python 중심일 수 있습니다.
+
+작은 오타 수정부터 큰 기능 개선까지 모두 환영합니다. 함께 더 좋은 HWPX 도구를
+만들어 갑시다.
