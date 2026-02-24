@@ -14,47 +14,47 @@ from hwpx.templates import blank_document_bytes
 
 _MIMETYPE = b"application/hwp+zip"
 _VERSION_XML = (
-    "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\" ?>"
-    "<hv:HCFVersion xmlns:hv=\"http://www.hancom.co.kr/hwpml/2011/version\" "
-    "targetApplication=\"WORDPROCESSOR\" major=\"5\" minor=\"0\" micro=\"5\" "
-    "buildNumber=\"0\" os=\"1\" xmlVersion=\"1.4\" application=\"Hancom Office Hangul\" "
-    "appVersion=\"9, 1, 1, 5656 WIN32LEWindows_Unknown_Version\"/>"
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>'
+    '<hv:HCFVersion xmlns:hv="http://www.hancom.co.kr/hwpml/2011/version" '
+    'targetApplication="WORDPROCESSOR" major="5" minor="0" micro="5" '
+    'buildNumber="0" os="1" xmlVersion="1.4" application="Hancom Office Hangul" '
+    'appVersion="9, 1, 1, 5656 WIN32LEWindows_Unknown_Version"/>'
 ).encode("utf-8")
 _CONTAINER_XML = (
-    "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\" ?>"
-    "<ocf:container xmlns:ocf=\"urn:oasis:names:tc:opendocument:xmlns:container\" "
-    "xmlns:hpf=\"http://www.hancom.co.kr/schema/2011/hpf\">"
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>'
+    '<ocf:container xmlns:ocf="urn:oasis:names:tc:opendocument:xmlns:container" '
+    'xmlns:hpf="http://www.hancom.co.kr/schema/2011/hpf">'
     "<ocf:rootfiles>"
-    "<ocf:rootfile full-path=\"Contents/content.hpf\" media-type=\"application/hwpml-package+xml\"/>"
+    '<ocf:rootfile full-path="Contents/content.hpf" media-type="application/hwpml-package+xml"/>'
     "</ocf:rootfiles>"
     "</ocf:container>"
 ).encode("utf-8")
 _MANIFEST_XML = (
-    "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\" ?>"
-    "<opf:package xmlns:opf=\"http://www.idpf.org/2007/opf\">"
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>'
+    '<opf:package xmlns:opf="http://www.idpf.org/2007/opf">'
     "<opf:metadata/>"
     "<opf:manifest>"
-    "<opf:item id=\"header\" href=\"Contents/header.xml\" media-type=\"application/xml\"/>"
-    "<opf:item id=\"section0\" href=\"Contents/section0.xml\" media-type=\"application/xml\"/>"
+    '<opf:item id="header" href="Contents/header.xml" media-type="application/xml"/>'
+    '<opf:item id="section0" href="Contents/section0.xml" media-type="application/xml"/>'
     "</opf:manifest>"
     "<opf:spine>"
-    "<opf:itemref idref=\"header\"/>"
-    "<opf:itemref idref=\"section0\"/>"
+    '<opf:itemref idref="header"/>'
+    '<opf:itemref idref="section0"/>'
     "</opf:spine>"
     "</opf:package>"
 ).encode("utf-8")
 _HEADER_XML = (
-    "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\" ?>"
-    "<hh:head xmlns:hh=\"http://www.hancom.co.kr/hwpml/2011/head\" version=\"1.3.0\" secCnt=\"1\">"
-    "<hh:beginNum page=\"1\" footnote=\"1\" endnote=\"1\" pic=\"1\" tbl=\"1\" equation=\"1\"/>"
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>'
+    '<hh:head xmlns:hh="http://www.hancom.co.kr/hwpml/2011/head" version="1.3.0" secCnt="1">'
+    '<hh:beginNum page="1" footnote="1" endnote="1" pic="1" tbl="1" equation="1"/>'
     "</hh:head>"
 ).encode("utf-8")
 _SECTION_XML = (
-    "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\" ?>"
-    "<hs:sec xmlns:hs=\"http://www.hancom.co.kr/hwpml/2011/section\" "
-    "xmlns:hp=\"http://www.hancom.co.kr/hwpml/2011/paragraph\">"
-    "<hp:p id=\"1\" paraPrIDRef=\"0\" styleIDRef=\"0\" pageBreak=\"0\" columnBreak=\"0\" merged=\"0\">"
-    "<hp:run charPrIDRef=\"0\"><hp:t>통합 테스트</hp:t></hp:run>"
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes" ?>'
+    '<hs:sec xmlns:hs="http://www.hancom.co.kr/hwpml/2011/section" '
+    'xmlns:hp="http://www.hancom.co.kr/hwpml/2011/paragraph">'
+    '<hp:p id="1" paraPrIDRef="0" styleIDRef="0" pageBreak="0" columnBreak="0" merged="0">'
+    '<hp:run charPrIDRef="0"><hp:t>통합 테스트</hp:t></hp:run>'
     "</hp:p>"
     "</hs:sec>"
 ).encode("utf-8")
@@ -122,9 +122,10 @@ def test_round_trip_preserves_package_parts(
         header_schema=default_schemas.header,
         section_schema=default_schemas.section,
     )
-    assert roundtrip_report.ok, \
-        "Round-trip document failed schema validation: " + \
-        "; ".join(str(issue) for issue in roundtrip_report.issues)
+    assert roundtrip_report.ok, (
+        "Round-trip document failed schema validation: "
+        + "; ".join(str(issue) for issue in roundtrip_report.issues)
+    )
 
 
 def test_fixture_validates_against_reference_schemas(
@@ -139,6 +140,26 @@ def test_fixture_validates_against_reference_schemas(
 
     bytes_report = validate_document(sample_document_bytes)
     assert bytes_report.ok, "Generated sample failed schema validation from bytes"
+
+
+def test_manifest_relative_hrefs_resolve_to_package_paths(
+    sample_document_bytes: bytes,
+) -> None:
+    package = HwpxPackage.open(sample_document_bytes)
+    manifest_text = package.get_text(package.MANIFEST_PATH)
+    manifest_text = manifest_text.replace(
+        'href="Contents/header.xml"', 'href="header.xml"'
+    )
+    manifest_text = manifest_text.replace(
+        'href="Contents/section0.xml"', 'href="section0.xml"'
+    )
+    package.set_part(package.MANIFEST_PATH, manifest_text)
+
+    assert package.section_paths() == ["Contents/section0.xml"]
+    assert package.header_paths() == ["Contents/header.xml"]
+
+    document = HwpxDocument.from_package(package)
+    assert len(document.sections) == 1
 
 
 def test_master_page_history_and_version_round_trip(tmp_path: Path) -> None:
@@ -156,9 +177,9 @@ def test_master_page_history_and_version_round_trip(tmp_path: Path) -> None:
             {"id": item_id, "href": href, "media-type": "application/xml"},
         )
 
-    add_manifest_item("master-page-0", "Contents/masterPages/masterPage0.xml")
-    add_manifest_item("history", "Contents/history.xml")
-    add_manifest_item("version", "version.xml")
+    add_manifest_item("master-page-0", "masterPages/masterPage0.xml")
+    add_manifest_item("history", "history.xml")
+    add_manifest_item("version", "../version.xml")
     package.set_xml(package.MANIFEST_PATH, manifest)
 
     hm_ns = "http://www.hancom.co.kr/hwpml/2011/master-page"
@@ -172,7 +193,9 @@ def test_master_page_history_and_version_round_trip(tmp_path: Path) -> None:
 
     hhs_ns = "http://www.hancom.co.kr/hwpml/2011/history"
     history_root = ET.Element(f"{{{hhs_ns}}}history")
-    history_entry = ET.SubElement(history_root, f"{{{hhs_ns}}}historyEntry", {"id": "0"})
+    history_entry = ET.SubElement(
+        history_root, f"{{{hhs_ns}}}historyEntry", {"id": "0"}
+    )
     comment = ET.SubElement(history_entry, f"{{{hhs_ns}}}comment")
     comment.text = "초기 내역"
     package.set_xml("Contents/history.xml", history_root)
@@ -223,6 +246,8 @@ def test_master_page_history_and_version_round_trip(tmp_path: Path) -> None:
     assert reopened_history_comment.text == "업데이트된 변경 기록"
 
     assert reopened_version.element.get("appVersion") == "15.0.0.100 WIN32"
-    assert "Contents/masterPages/masterPage0.xml" in reopened.package.master_page_paths()
+    assert (
+        "Contents/masterPages/masterPage0.xml" in reopened.package.master_page_paths()
+    )
     assert "Contents/history.xml" in reopened.package.history_paths()
     assert reopened.package.version_path() == "version.xml"

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import io
+import posixpath
 from pathlib import Path
 from typing import BinaryIO, Dict, Iterable, Mapping, MutableMapping
 import xml.etree.ElementTree as ET
@@ -64,20 +65,29 @@ class HwpxPackage:
         if isinstance(source, (str, Path)):
             path = Path(source)
             with ZipFile(path) as archive:
-                parts = {info.filename: archive.read(info.filename) for info in archive.infolist()}
+                parts = {
+                    info.filename: archive.read(info.filename)
+                    for info in archive.infolist()
+                }
             return cls(parts, source_path=path)
 
         if isinstance(source, (bytes, bytearray)):
             buffer = io.BytesIO(source)
             with ZipFile(buffer) as archive:
-                parts = {info.filename: archive.read(info.filename) for info in archive.infolist()}
+                parts = {
+                    info.filename: archive.read(info.filename)
+                    for info in archive.infolist()
+                }
             return cls(parts)
 
         if hasattr(source, "read"):
             data = source.read()
             buffer = io.BytesIO(data)
             with ZipFile(buffer) as archive:
-                parts = {info.filename: archive.read(info.filename) for info in archive.infolist()}
+                parts = {
+                    info.filename: archive.read(info.filename)
+                    for info in archive.infolist()
+                }
             package = cls(parts)
             package._source_path = None
             return package
@@ -131,6 +141,21 @@ class HwpxPackage:
         ns = {"opf": _OPF_NS}
         return list(manifest.findall("./opf:manifest/opf:item", ns))
 
+    def _resolve_manifest_href(self, href: str) -> str:
+        candidate = href.strip().lstrip("/")
+        if not candidate:
+            return candidate
+        if candidate in self._parts:
+            return candidate
+
+        manifest_dir = posixpath.dirname(self.MANIFEST_PATH)
+        resolved = posixpath.normpath(
+            f"{manifest_dir}/{candidate}" if manifest_dir else candidate
+        )
+        if resolved in self._parts:
+            return resolved
+        return candidate
+
     def _resolve_spine_paths(self) -> list[str]:
         if self._spine_cache is None:
             manifest = self.manifest_tree()
@@ -138,7 +163,7 @@ class HwpxPackage:
             manifest_items: Dict[str, str] = {}
             for item in manifest.findall("./opf:manifest/opf:item", ns):
                 item_id = item.attrib.get("id")
-                href = item.attrib.get("href", "")
+                href = self._resolve_manifest_href(item.attrib.get("href", ""))
                 if item_id and href:
                     manifest_items[item_id] = href
             spine_paths: list[str] = []
@@ -190,7 +215,7 @@ class HwpxPackage:
             from pathlib import PurePosixPath
 
             paths = [
-                item.attrib.get("href", "")
+                self._resolve_manifest_href(item.attrib.get("href", ""))
                 for item in self._manifest_items()
                 if _manifest_matches(item, "masterpage", "master-page")
                 and item.attrib.get("href")
@@ -212,10 +237,9 @@ class HwpxPackage:
             from pathlib import PurePosixPath
 
             paths = [
-                item.attrib.get("href", "")
+                self._resolve_manifest_href(item.attrib.get("href", ""))
                 for item in self._manifest_items()
-                if _manifest_matches(item, "history")
-                and item.attrib.get("href")
+                if _manifest_matches(item, "history") and item.attrib.get("href")
             ]
 
             if not paths:
@@ -233,7 +257,9 @@ class HwpxPackage:
             path: str | None = None
             for item in self._manifest_items():
                 if _manifest_matches(item, "version"):
-                    href = item.attrib.get("href", "").strip()
+                    href = self._resolve_manifest_href(
+                        item.attrib.get("href", "")
+                    ).strip()
                     if href:
                         path = href
                         break

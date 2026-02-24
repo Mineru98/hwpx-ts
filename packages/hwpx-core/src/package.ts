@@ -51,6 +51,27 @@ function pathName(path: string): string {
   return idx >= 0 ? path.substring(idx + 1) : path;
 }
 
+function pathDir(path: string): string {
+  const idx = path.lastIndexOf("/");
+  return idx >= 0 ? path.substring(0, idx) : "";
+}
+
+function normalizePosixPath(path: string): string {
+  const parts = path.split("/");
+  const normalized: string[] = [];
+  for (const part of parts) {
+    if (!part || part === ".") continue;
+    if (part === "..") {
+      if (normalized.length > 0) {
+        normalized.pop();
+      }
+      continue;
+    }
+    normalized.push(part);
+  }
+  return normalized.join("/");
+}
+
 export class HwpxPackage {
   static readonly MIMETYPE_PATH = "mimetype";
   static readonly CONTAINER_PATH = "META-INF/container.xml";
@@ -320,6 +341,20 @@ export class HwpxPackage {
     return items;
   }
 
+  private resolveManifestHref(href: string): string {
+    const candidate = href.trim().replace(/^\/+/, "");
+    if (!candidate) return candidate;
+    if (this._parts.has(candidate)) return candidate;
+
+    const manifestDir = pathDir(HwpxPackage.MANIFEST_PATH);
+    const resolved = manifestDir
+      ? normalizePosixPath(`${manifestDir}/${candidate}`)
+      : normalizePosixPath(candidate);
+
+    if (this._parts.has(resolved)) return resolved;
+    return candidate;
+  }
+
   private resolveSpinePaths(): string[] {
     if (this._spineCache == null) {
       const doc = this.manifestTree();
@@ -348,7 +383,7 @@ export class HwpxPackage {
 
       for (const item of findElements(root, "item")) {
         const id = item.getAttribute("id");
-        const href = item.getAttribute("href") ?? "";
+        const href = this.resolveManifestHref(item.getAttribute("href") ?? "");
         if (id && href) {
           manifestItems[id] = href;
         }
@@ -405,7 +440,7 @@ export class HwpxPackage {
     if (this._masterPagePathsCache == null) {
       let paths = this.manifestItems()
         .filter((item) => manifestMatches(item, "masterpage", "master-page"))
-        .map((item) => item.getAttribute("href") ?? "")
+        .map((item) => this.resolveManifestHref(item.getAttribute("href") ?? ""))
         .filter((href) => href);
 
       if (paths.length === 0) {
@@ -425,7 +460,7 @@ export class HwpxPackage {
     if (this._historyPathsCache == null) {
       let paths = this.manifestItems()
         .filter((item) => manifestMatches(item, "history"))
-        .map((item) => item.getAttribute("href") ?? "")
+        .map((item) => this.resolveManifestHref(item.getAttribute("href") ?? ""))
         .filter((href) => href);
 
       if (paths.length === 0) {
@@ -445,7 +480,7 @@ export class HwpxPackage {
       let path: string | null = null;
       for (const item of this.manifestItems()) {
         if (manifestMatches(item, "version")) {
-          const href = (item.getAttribute("href") ?? "").trim();
+          const href = this.resolveManifestHref(item.getAttribute("href") ?? "").trim();
           if (href) {
             path = href;
             break;

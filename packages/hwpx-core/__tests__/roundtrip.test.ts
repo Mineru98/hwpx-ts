@@ -240,6 +240,24 @@ describe("HWPX roundtrip", () => {
     }
   });
 
+  it("manifest href가 content.hpf 기준 상대경로여도 section/header를 해석한다", async () => {
+    const pkg = await HwpxPackage.open(skeletonBytes);
+    const rewrittenManifest = pkg
+      .getText(HwpxPackage.MANIFEST_PATH)
+      .replace(/href="Contents\/header.xml"/g, 'href="header.xml"')
+      .replace(/href="Contents\/section0.xml"/g, 'href="section0.xml"');
+    pkg.setPart(HwpxPackage.MANIFEST_PATH, rewrittenManifest);
+
+    const bytes = await pkg.save();
+    const reopenedPackage = await HwpxPackage.open(bytes);
+
+    expect(reopenedPackage.sectionPaths()).toContain("Contents/section0.xml");
+    expect(reopenedPackage.headerPaths()).toContain("Contents/header.xml");
+
+    const reopenedDocument = await HwpxDocument.open(bytes);
+    expect(reopenedDocument.sections.length).toBeGreaterThan(0);
+  });
+
   it("누락 파트 접근 시 경고를 전달한다", async () => {
     const pkg = await HwpxPackage.open(skeletonBytes);
     const warnings: string[] = [];
