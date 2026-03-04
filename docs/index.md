@@ -24,6 +24,7 @@ examples
 
 schema-overview
 faq
+github-hwpx-conversion-survey-2026-03-04
 ```
 
 ```{toctree}
@@ -71,4 +72,5 @@ document.save("updated-sample.hwpx")
 - {doc}`quickstart` — 설치부터 첫 번째 문서를 편집하기까지 따라 하는 튜토리얼
 - {doc}`usage` — 패키지 전반의 핵심 개념과 고급 편집 패턴
 - {doc}`api_reference` — 세부 클래스와 함수 시그니처 모음
+- {doc}`github-hwpx-conversion-survey-2026-03-04` — GitHub 기반 HWPX 변환 구현 조사 및 도입 포인트
 ```

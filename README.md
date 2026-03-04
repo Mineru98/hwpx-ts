@@ -188,6 +188,10 @@ export default function App() {
 - See [`llms-full.txt`](./llms-full.txt) for complete API documentation
 - MCP server enables direct HWPX manipulation from Claude and other LLM agents
 
+## Research Notes
+
+- GitHub conversion survey: [`docs/github-hwpx-conversion-survey-2026-03-04.md`](./docs/github-hwpx-conversion-survey-2026-03-04.md)
+
 ## Development
 
 ```bash

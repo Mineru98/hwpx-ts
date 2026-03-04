@@ -1,0 +1,271 @@
+# hwpx-ts — Use this to read, write, and convert Korean HWPX/HWP documents in TypeScript/JavaScript.
+
+> Complete API documentation for AI agents working with HWPX documents in TypeScript.
+> Install: npm install @ubermensch1218/hwpxcore
+> For a concise overview, see llms.txt.
+
+## What is HWPX?
+
+HWPX is the modern XML-based document format used by Hangul (한글), the dominant word processor
+in South Korea. It is a ZIP archive containing XML parts, similar to OOXML (.docx).
+HWPX files use the .hwpx extension. The older binary format uses .hwp.
+
+## Package: @ubermensch1218/hwpxcore
+
+Install:
+
+```bash
+npm install @ubermensch1218/hwpxcore
+```
+
+### HwpxDocument (main entry point)
+
+The primary class for working with HWPX documents.
+
+#### Opening Documents
+
+```ts
+import { HwpxDocument } from "@ubermensch1218/hwpxcore";
+
+// From Uint8Array (browser or Node.js)
+const doc = await HwpxDocument.open(uint8Array);
+
+// From fetch response
+const buffer = await fetch(url).then(r => r.arrayBuffer());
+const doc = await HwpxDocument.open(new Uint8Array(buffer));
+
+// From Node.js file (via fs.readFileSync)
+import { readFileSync } from "fs";
+const doc = await HwpxDocument.open(readFileSync("file.hwpx"));
+
+// New blank document from template
+import { loadSkeletonHwpx } from "@ubermensch1218/hwpxcore";
+const doc = await HwpxDocument.open(loadSkeletonHwpx());
+```
+
+#### Reading Content
+
+```ts
+doc.sections;        // HwpxOxmlSection[] — all document sections
+doc.paragraphs;      // HwpxOxmlParagraph[] — all paragraphs across all sections
+doc.text;            // string — concatenated text of entire document
+doc.tables;          // all table objects
+doc.headers;         // header objects
+doc.memos;           // memo/comment objects
+```
+
+#### Modifying Content
+
+```ts
+doc.addParagraph("text");                     // Append paragraph to first section
+doc.addParagraph("text", { sectionIndex: 1 }); // Append to specific section
+doc.insertParagraphAt(sectionIdx, paraIdx, "text"); // Insert at position
+doc.removeParagraph(sectionIdx, paraIdx);     // Remove paragraph
+doc.replaceText("old", "new");                // Global find-and-replace
+```
+
+#### Working with Tables
+
+```ts
+const para = doc.sections[0].paragraphs[0];
+para.addTable(rows, cols);
+
+const table = para.tables[0];
+table.setCellText(row, col, "text");
+```
+
+#### Inserting Images
+
+```ts
+doc.addImage(imageBytes, {
+  mediaType: "image/png",  // or "image/jpeg", "image/gif"
+  widthMm: 100,
+  heightMm: 80,
+});
+```
+
+#### Inserting Equations
+
+```ts
+doc.addEquation("E=mc^2");
+```
+
+#### Formatting / Styles
+
+```ts
+// Character styles (bold, italic, underline, fontSize)
+const charPrId = doc.ensureRunStyle({ bold: true, fontSize: 12 });
+
+// Paragraph styles (alignment)
+const paraPrId = doc.ensureParaStyle({ alignment: "center" });
+
+// Lookup existing character property
+const style = doc.charProperty(charPrIdRef);
+```
+
+#### Saving Documents
+
+```ts
+const bytes = await doc.save();            // Uint8Array
+const bytes = await doc.saveToBuffer();    // Uint8Array (alias)
+const blob  = await doc.saveToBlob();      // Blob (for browser download)
+await doc.saveToPath("./output.hwpx");     // Write to Node.js filesystem
+```
+
+#### Lifecycle
+
+```ts
+doc.libraryVersion;       // string — library version
+doc.documentVersionInfo;  // version metadata from document
+doc.closed;               // boolean — whether document is closed
+doc.close();              // Release resources (important in long-running processes)
+```
+
+### HwpxPackage (low-level ZIP access)
+
+For advanced use cases requiring direct access to the ZIP package internals.
+
+```ts
+import { HwpxPackage } from "@ubermensch1218/hwpxcore";
+
+const pkg = await HwpxPackage.open(hwpxBytes);
+pkg.partNames();                        // string[] — all parts in the archive
+pkg.getPart("Contents/header.xml");     // Uint8Array — raw part content
+pkg.rootfiles();                        // root file entries from container
+pkg.mainRootFile();                     // primary root file path
+pkg.versionPath();                      // version XML path
+pkg.close();
+```
+
+### TextExtractor
+
+```ts
+import { TextExtractor } from "@ubermensch1218/hwpxcore";
+```
+
+Utility for extracting plain text from parsed HWPX structures.
+
+### Header Parsing
+
+```ts
+import { parseHeaderXml, serializeXml } from "@ubermensch1218/hwpxcore";
+
+const header = doc.headers[0];
+const xml = serializeXml(header.element);
+const parsed = parseHeaderXml(xml);
+
+// Access styles
+parsed.refList?.styles?.styles;        // Style[]
+// Access paragraph properties
+parsed.refList?.paraProperties?.properties; // ParaProperty[]
+// Access fonts
+parsed.refList?.facenames;             // font face information
+```
+
+## Package: @ubermensch1218/hwpx-cli
+
+CLI tool for HWPX file operations.
+
+```bash
+npx @ubermensch1218/hwpx-cli <command>
+```
+
+### Commands
+
+```
+init                     Quick-start project setup (install deps, configure MCP)
+read <file>              Read HWPX file and output text content
+  -s, --section <n>      Section index to read (0-based)
+
+export <file>            Export HWPX file to other formats
+  -f, --format <fmt>     Output format: md, txt
+  -o, --output <file>    Output file path
+  --image-mode <mode>    markdown | placeholder | omit
+  --images-dir <dir>     Extract images to directory
+  --manifest <file>      Write image manifest JSON
+  --token-efficient      Token-efficient markdown normalization
+
+hwpx-to-md <file>        Convert HWPX to token-efficient Markdown
+  -o, --output <file>    Output path (default: <input>.md)
+  --image-mode <mode>    markdown | placeholder | omit
+  --images-dir <dir>     Extract images to directory
+  --manifest <file>      Manifest output path
+
+hwp-to-hwpx <file>       Convert legacy HWP to HWPX (best-effort)
+  -o, --output <file>    Output path
+
+extract <file> <part>    Extract specific XML part from HWPX
+info <file>              Display HWPX file metadata as JSON
+mcp-config               Configure MCP server for Claude Code
+  -g, --global           Global config (default)
+  -p, --project          Project-level config
+  -l, --list             List configured servers
+  -r, --remove           Remove from config
+```
+
+## Package: @ubermensch1218/hwpx-mcp
+
+MCP (Model Context Protocol) server exposing HWPX tools for LLM agents.
+
+```bash
+npx @ubermensch1218/hwpx-mcp
+```
+
+### Available MCP Tools
+
+| Tool | Description | Parameters |
+|------|-------------|------------|
+| `hwpx_read` | Extract plain text from HWPX file | `path: string` |
+| `hwpx_export` | Export to markdown or text | `path: string, format: "md" \| "txt"` |
+| `hwpx_extract_xml` | Extract internal XML part | `path: string, part: string` |
+| `hwpx_info` | Return file structure metadata | `path: string` |
+
+### Configuration for Claude Desktop / Claude Code
+
+```json
+{
+  "mcpServers": {
+    "hwpx": {
+      "command": "npx",
+      "args": ["@ubermensch1218/hwpx-mcp"]
+    }
+  }
+}
+```
+
+## Package: @ubermensch1218/hwpxeditor
+
+React component for rendering and editing HWPX documents in the browser.
+
+```bash
+npm install @ubermensch1218/hwpxeditor react react-dom
+```
+
+```tsx
+import { Editor } from "@ubermensch1218/hwpxeditor";
+
+function App() {
+  return <Editor />;
+}
+```
+
+## Compatibility Notes
+
+- ZIP format: `mimetype` entry is always first and uses STORE compression (no deflate)
+- XML namespace prefixes: `hp` (paragraph), `hs` (section), `hc` (common), `hh` (header)
+- Non-standard containers are handled gracefully with fallback warning handler
+- `HwpxPackage.setWarningHandler(fn)` to capture fallback warnings
+
+## Safe Usage Patterns for Agents
+
+1. Always use `saveToBuffer()` in generic/serverless environments
+2. Use `saveToPath()` only when Node.js filesystem is available
+3. Call `doc.close()` / `pkg.close()` in long-running processes to free memory
+4. Handle non-standard HWPX files gracefully — fallback warnings are informative, not fatal
+5. Prefer `loadSkeletonHwpx()` for creating new documents from scratch
+6. Use the MCP server for agent-to-HWPX integration rather than parsing directly when possible
+
+## Repository
+
+- GitHub: https://github.com/ubermensch1218/hwpx-ts
+- npm: https://www.npmjs.com/package/@ubermensch1218/hwpxcore

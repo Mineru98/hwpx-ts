@@ -1,149 +1,107 @@
-# hwpx-ts LLM Guide
+# hwpx-ts — Use this to read, write, and convert Korean HWPX/HWP documents in TypeScript/JavaScript.
 
-This file is a concise, LLM-friendly reference for using this repository.
+> TypeScript toolkit for HWPX document workflows.
+> HWPX is the modern XML-based format of Hangul (한글), the dominant word processor in Korea.
+> Install: npm install @ubermensch1218/hwpxcore
 
-## Repository Purpose
+## Packages
 
-`hwpx-ts` is a TypeScript monorepo for HWPX document workflows:
+- @ubermensch1218/hwpxcore — Core HWPX read/edit library
+- @ubermensch1218/hwpxeditor — React editor component
+- @ubermensch1218/hwpx-mcp — MCP server for LLM agents
+- @ubermensch1218/hwpx-cli — CLI tool
+- @ubermensch1218/hwpx-tools — Conversion utilities
 
-- Parse and edit HWPX (`@ubermensch1218/hwpxcore`)
-- Render/edit in React (`@ubermensch1218/hwpxeditor`)
-- Expose HWPX tools through MCP (`@ubermensch1218/hwpx-mcp`)
-
-## Primary Package: @ubermensch1218/hwpxcore
-
-Install:
+## Install
 
 ```bash
 npm install @ubermensch1218/hwpxcore
 ```
 
-Basic import:
+## Quick Examples
+
+Open and read:
 
 ```ts
-import { HwpxDocument, HwpxPackage, TextExtractor } from "@ubermensch1218/hwpxcore";
-```
-
-### Core APIs
-
-Open and save:
-
-```ts
+import { HwpxDocument } from "@ubermensch1218/hwpxcore";
 const doc = await HwpxDocument.open(hwpxBytes);
-const out1 = await doc.save();          // Uint8Array
-const out2 = await doc.saveToBuffer();  // Uint8Array
-const blob = await doc.saveToBlob();    // Blob
-await doc.saveToPath("./out.hwpx");    // Node.js path
+doc.text;          // all text
+doc.sections;      // sections array
+doc.paragraphs;    // all paragraphs
+doc.tables;        // all tables
 ```
 
-Read/modify content:
+Create and edit:
 
 ```ts
-doc.sections;
-doc.paragraphs;
-doc.text;
-
-doc.addParagraph("new paragraph");
-doc.insertParagraphAt(0, 0, "inserted");
-doc.removeParagraph(0, 0);
-doc.replaceText("old", "new");
+import { HwpxDocument, loadSkeletonHwpx } from "@ubermensch1218/hwpxcore";
+const doc = await HwpxDocument.open(loadSkeletonHwpx());
+doc.addParagraph("Hello");
+doc.replaceText("Hello", "Hi");
+const bytes = await doc.saveToBuffer();
 ```
 
-Structured objects:
+Tables:
 
 ```ts
-doc.tables;
-doc.headers;
-doc.memos;
+para.addTable(2, 3);
+para.tables[0].setCellText(0, 0, "Cell text");
 ```
 
-Formatting helpers:
+Images:
 
 ```ts
-const charPrId = doc.ensureRunStyle({ bold: true, fontSize: 12 });
-const paraPrId = doc.ensureParaStyle({ alignment: "center" });
+doc.addImage(imageBytes, { mediaType: "image/png", widthMm: 100, heightMm: 80 });
 ```
 
-Image/equation insertion:
+Styles:
 
 ```ts
-doc.addImage(imageBytes, {
-  mediaType: "image/png",
-  widthMm: 100,
-  heightMm: 80,
-});
-
-doc.addEquation("E=mc^2");
+doc.ensureRunStyle({ bold: true, fontSize: 12 });
+doc.ensureParaStyle({ alignment: "center" });
 ```
 
-Version/metadata/lifecycle:
+Save:
 
 ```ts
-doc.libraryVersion;
-doc.documentVersionInfo;
-doc.closed;
-doc.close();
+await doc.saveToBuffer();         // Uint8Array
+await doc.saveToBlob();           // Blob
+await doc.saveToPath("out.hwpx"); // Node.js file
 ```
 
-Low-level package APIs:
-
-```ts
-const pkg = await HwpxPackage.open(hwpxBytes);
-pkg.partNames();
-pkg.getPart("Contents/header.xml");
-pkg.rootfiles();
-pkg.mainRootFile();
-pkg.versionPath();
-pkg.close();
-```
-
-### Compatibility Notes
-
-- ZIP save writes `mimetype` as first entry with `STORE` compression.
-- XML serialization prefers HWPX prefixes (`hp`, `hs`, `hc`, `hh`).
-- Package fallback warnings can be captured via `HwpxPackage.setWarningHandler(...)`.
-
-## MCP Package: @ubermensch1218/hwpx-mcp
-
-Run server:
+## MCP Server (LLM Agent Integration)
 
 ```bash
 npx @ubermensch1218/hwpx-mcp
 ```
 
-Available MCP tools:
+Tools: `hwpx_read`, `hwpx_export`, `hwpx_extract_xml`, `hwpx_info`
 
-- `hwpx_read`: extract plain text
-- `hwpx_export`: export as `md` or `txt`
-- `hwpx_extract_xml`: extract internal XML part
-- `hwpx_info`: return structure metadata
-
-Claude Desktop config snippet:
+Claude config:
 
 ```json
-{
-  "mcpServers": {
-    "hwpx": {
-      "command": "npx",
-      "args": ["@ubermensch1218/hwpx-mcp"]
-    }
-  }
-}
+{ "mcpServers": { "hwpx": { "command": "npx", "args": ["@ubermensch1218/hwpx-mcp"] } } }
 ```
 
-## Safe Usage Patterns for Agents
-
-- Prefer `saveToBuffer()` in generic environments.
-- Use `saveToPath()` only in Node.js runtime with filesystem access.
-- Call `doc.close()`/`pkg.close()` when done in long-running processes.
-- Handle missing/non-standard parts gracefully; fallback warnings are informative.
-
-## Development Commands (Repo)
+## CLI
 
 ```bash
-pnpm --filter @ubermensch1218/hwpxcore test
-pnpm --filter @ubermensch1218/hwpxcore typecheck
-pnpm --filter @ubermensch1218/hwpxcore build
-pnpm --filter @ubermensch1218/hwpx-tools test
-pnpm --filter @ubermensch1218/hwpx-mcp exec vitest run --passWithNoTests
+npx @ubermensch1218/hwpx-cli read doc.hwpx
+npx @ubermensch1218/hwpx-cli hwpx-to-md doc.hwpx
+npx @ubermensch1218/hwpx-cli init
 ```
+
+## Agent Safety Notes
+
+- Use `saveToBuffer()` in serverless/generic environments
+- Call `doc.close()` in long-running processes
+- Non-standard HWPX files produce warnings, not errors
+
+## Full Reference
+
+See llms-full.txt for complete API documentation.
+
+## Links
+
+- GitHub: https://github.com/ubermensch1218/hwpx-ts
+- npm: https://www.npmjs.com/package/@ubermensch1218/hwpxcore
