@@ -22,7 +22,8 @@ function getMediaType(file: File): "image/png" | "image/jpeg" | "image/gif" | "i
 
 async function getImageDimensions(data: Uint8Array, mediaType: string): Promise<{ width: number; height: number }> {
   return new Promise((resolve) => {
-    const blob = new Blob([data], { type: mediaType });
+    const blobBytes = Uint8Array.from(data);
+    const blob = new Blob([blobBytes], { type: mediaType });
     const url = URL.createObjectURL(blob);
     const img = new Image();
     img.onload = () => {

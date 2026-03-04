@@ -21,3 +21,11 @@ jobs:
       - run: pnpm --filter @ubermensch1218/hwpxcore typecheck
       - run: pnpm --filter @ubermensch1218/hwpxcore test
       - run: pnpm --filter @ubermensch1218/hwpxcore build
+      - run: pnpm --filter @ubermensch1218/hwpx-tools typecheck
+      - run: pnpm --filter @ubermensch1218/hwpx-tools test
+      - run: pnpm --filter @ubermensch1218/hwpx-tools build
+      - run: pnpm --filter @ubermensch1218/hwpx-cli typecheck
+      - run: pnpm --filter @ubermensch1218/hwpx-cli build
+      - run: pnpm --filter @ubermensch1218/hwpx-mcp typecheck
+      - run: pnpm --filter @ubermensch1218/hwpx-mcp build
+      - run: pnpm --filter @ubermensch1218/hwpxeditor exec tsc --noEmit

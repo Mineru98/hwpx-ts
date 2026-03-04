@@ -1,10 +1,10 @@
 /**
  * MCP configuration command for hwpxtool.
- * Adds hwpx-mcp server to Claude Code global settings.
+ * Adds hwpx-mcp server to Claude Code or OpenClaw settings.
  */
 
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from "fs";
-import { dirname, join } from "path";
+import { dirname, isAbsolute, join } from "path";
 import { homedir } from "os";
 
 export interface McpConfigOptions {
@@ -12,10 +12,15 @@ export interface McpConfigOptions {
   project?: boolean;
   list?: boolean;
   remove?: boolean;
+  target?: "claude" | "openclaw";
+  configPath?: string;
+  print?: boolean;
 }
 
 const CLAUDE_GLOBAL_SETTINGS_PATH = join(homedir(), ".claude", "settings.json");
 const CLAUDE_PROJECT_MCP_PATH = ".mcp.json";
+const OPENCLAW_GLOBAL_SETTINGS_PATH = join(homedir(), ".openclaw", "settings.json");
+const OPENCLAW_PROJECT_MCP_PATH = ".openclaw-mcp.json";
 
 interface ClaudeSettings {
   mcpServers?: Record<string, McpServerConfig>;
@@ -26,6 +31,37 @@ interface McpServerConfig {
   command: string;
   args?: string[];
   env?: Record<string, string>;
+}
+
+function targetLabel(options: McpConfigOptions): string {
+  return options.target === "openclaw" ? "OpenClaw" : "Claude Code";
+}
+
+function resolveConfiguredPath(configPath: string): string {
+  if (isAbsolute(configPath)) {
+    return configPath;
+  }
+  return join(process.cwd(), configPath);
+}
+
+function resolveGlobalSettingsPath(options: McpConfigOptions): string {
+  if (options.configPath) {
+    return resolveConfiguredPath(options.configPath);
+  }
+  if (options.target === "openclaw") {
+    return OPENCLAW_GLOBAL_SETTINGS_PATH;
+  }
+  return CLAUDE_GLOBAL_SETTINGS_PATH;
+}
+
+function resolveProjectSettingsPath(options: McpConfigOptions): string {
+  if (options.configPath) {
+    return resolveConfiguredPath(options.configPath);
+  }
+  if (options.target === "openclaw") {
+    return join(process.cwd(), OPENCLAW_PROJECT_MCP_PATH);
+  }
+  return join(process.cwd(), CLAUDE_PROJECT_MCP_PATH);
 }
 
 /**
@@ -73,7 +109,7 @@ function getMcpServerConfig(): McpServerConfig {
  * Configure MCP for global Claude Code settings.
  */
 export function configureGlobalMcp(options: McpConfigOptions = {}): void {
-  const settingsPath = CLAUDE_GLOBAL_SETTINGS_PATH;
+  const settingsPath = resolveGlobalSettingsPath(options);
   const serverConfig = getMcpServerConfig();
   const serverName = "hwpx";
 
@@ -102,7 +138,7 @@ export function configureGlobalMcp(options: McpConfigOptions = {}): void {
 
   if (options.list) {
     // List configured servers
-    console.log("Configured MCP servers:");
+    console.log(`${targetLabel(options)} configured MCP servers:`);
     for (const [name, config] of Object.entries(settings.mcpServers)) {
       console.log(`  - ${name}: ${config.command} ${(config.args || []).join(" ")}`);
     }
@@ -124,21 +160,26 @@ export function configureGlobalMcp(options: McpConfigOptions = {}): void {
   // Add or update hwpx server
   settings.mcpServers[serverName] = serverConfig;
 
+  if (options.print) {
+    console.log(JSON.stringify({ mcpServers: { [serverName]: serverConfig } }, null, 2));
+    return;
+  }
+
   // Write settings
   writeFileSync(settingsPath, JSON.stringify(settings, null, 2), "utf-8");
 
-  console.log(`Added "${serverName}" to global MCP settings.`);
+  console.log(`Added "${serverName}" to global MCP settings for ${targetLabel(options)}.`);
   console.log(`\nConfiguration:`);
   console.log(JSON.stringify({ [serverName]: serverConfig }, null, 2));
   console.log(`\nSettings file: ${settingsPath}`);
-  console.log(`\nRestart Claude Code to apply changes.`);
+  console.log(`\nRestart ${targetLabel(options)} to apply changes.`);
 }
 
 /**
  * Configure MCP for project-level settings.
  */
 export function configureProjectMcp(options: McpConfigOptions = {}): void {
-  const settingsPath = join(process.cwd(), CLAUDE_PROJECT_MCP_PATH);
+  const settingsPath = resolveProjectSettingsPath(options);
   const serverConfig = getMcpServerConfig();
   const serverName = "hwpx";
 
@@ -147,7 +188,7 @@ export function configureProjectMcp(options: McpConfigOptions = {}): void {
       try {
         const content = readFileSync(settingsPath, "utf-8");
         const config = JSON.parse(content);
-        console.log("Project MCP servers:");
+        console.log(`${targetLabel(options)} project MCP servers:`);
         if (config.mcpServers) {
           for (const [name, srv] of Object.entries(config.mcpServers)) {
             const s = srv as McpServerConfig;
@@ -200,10 +241,15 @@ export function configureProjectMcp(options: McpConfigOptions = {}): void {
   // Add or update hwpx server
   config.mcpServers[serverName] = serverConfig;
 
+  if (options.print) {
+    console.log(JSON.stringify({ mcpServers: { [serverName]: serverConfig } }, null, 2));
+    return;
+  }
+
   // Write settings
   writeFileSync(settingsPath, JSON.stringify(config, null, 2), "utf-8");
 
-  console.log(`Added "${serverName}" to project MCP settings.`);
+  console.log(`Added "${serverName}" to project MCP settings for ${targetLabel(options)}.`);
   console.log(`\nConfiguration:`);
   console.log(JSON.stringify({ [serverName]: serverConfig }, null, 2));
   console.log(`\nSettings file: ${settingsPath}`);
@@ -213,6 +259,10 @@ export function configureProjectMcp(options: McpConfigOptions = {}): void {
  * Main MCP config command handler.
  */
 export function handleMcpConfig(options: McpConfigOptions): void {
+  if (options.target && options.target !== "claude" && options.target !== "openclaw") {
+    throw new Error(`Unsupported target: ${options.target}. Use one of: claude, openclaw`);
+  }
+
   if (options.project) {
     configureProjectMcp(options);
   } else {

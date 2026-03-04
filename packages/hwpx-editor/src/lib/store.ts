@@ -130,6 +130,18 @@ export interface EditorStore {
   setHighlightColor: (color: string) => void;
   setAlignment: (alignment: AlignmentType) => void;
   setLineSpacing: (spacing: number) => void;
+  applyBullet: (bulletId: string | null) => void;
+  applyNumbering: (level: number) => void;
+  applyOutlineLevel: (level: number) => void;
+  removeBulletNumbering: () => void;
+  applyStyle: (styleId: string) => void;
+  insertToc: (options: {
+    title?: string;
+    tabLeader?: "DOT" | "HYPHEN" | "UNDERLINE" | "NONE";
+    tabWidth?: number;
+    maxLevel?: number;
+    showPageNumbers?: boolean;
+  }) => void;
 
   // Block operations
   deleteBlock: (sectionIndex: number, paragraphIndex: number) => void;
@@ -198,6 +210,12 @@ export interface EditorStore {
 
   // Watermark
   setWatermarkText: (text: string) => void;
+  setHeaderFooter: (opts: { headerText?: string; footerText?: string }) => void;
+  insertShape: (
+    shapeType: "rectangle" | "ellipse" | "line" | "arrow",
+    widthMm: number,
+    heightMm: number
+  ) => void;
 
   // Dialog open/close
   openCharFormatDialog: () => void;
@@ -242,6 +260,7 @@ export interface EditorStore {
   // Text insertion at cursor
   insertTextAtCursor: (text: string) => void;
   insertTab: () => void;
+  findAndReplace: (search: string, replacement: string, count?: number) => number;
 
   // Page setup
   updatePageSize: (width: number, height: number) => void;
@@ -265,6 +284,9 @@ export interface EditorStore {
   mergeTableCells: () => void;
   splitTableCell: () => void;
   deleteTable: () => void;
+  setSelectedCellsSize: (widthMm?: number, heightMm?: number) => void;
+  mergeSelectedCells: () => void;
+  unmergeSelectedCells: () => void;
 
   // File operations
   openFile: () => void;
@@ -669,6 +691,112 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       get().refreshExtendedFormat();
     } catch (e) {
       console.error("setLineSpacing failed:", e);
+    }
+  },
+
+  applyBullet: (bulletId) => {
+    const { doc, selection } = get();
+    if (!doc || !selection) return;
+    try {
+      const section = doc.sections[selection.sectionIndex];
+      if (!section) return;
+      const para = section.paragraphs[selection.paragraphIndex];
+      if (!para) return;
+      get().pushUndo();
+      para.bulletIdRef = bulletId;
+      if (bulletId) para.outlineLevel = 0;
+      get().rebuild();
+    } catch (e) {
+      console.error("applyBullet failed:", e);
+    }
+  },
+
+  applyNumbering: (level) => {
+    const { doc, selection } = get();
+    if (!doc || !selection) return;
+    try {
+      const section = doc.sections[selection.sectionIndex];
+      if (!section) return;
+      const para = section.paragraphs[selection.paragraphIndex];
+      if (!para) return;
+      const safeLevel = Math.max(0, Math.min(9, Math.floor(level)));
+      get().pushUndo();
+      para.outlineLevel = safeLevel;
+      if (safeLevel > 0) para.bulletIdRef = null;
+      get().rebuild();
+    } catch (e) {
+      console.error("applyNumbering failed:", e);
+    }
+  },
+
+  applyOutlineLevel: (level) => {
+    get().applyNumbering(level);
+  },
+
+  removeBulletNumbering: () => {
+    const { doc, selection } = get();
+    if (!doc || !selection) return;
+    try {
+      const section = doc.sections[selection.sectionIndex];
+      if (!section) return;
+      const para = section.paragraphs[selection.paragraphIndex];
+      if (!para) return;
+      get().pushUndo();
+      para.bulletIdRef = null;
+      para.outlineLevel = 0;
+      get().rebuild();
+    } catch (e) {
+      console.error("removeBulletNumbering failed:", e);
+    }
+  },
+
+  applyStyle: (styleId) => {
+    const { doc, selection } = get();
+    if (!doc || !selection) return;
+    try {
+      const section = doc.sections[selection.sectionIndex];
+      if (!section) return;
+      const para = section.paragraphs[selection.paragraphIndex];
+      if (!para) return;
+      get().pushUndo();
+      para.styleIdRef = styleId;
+      get().rebuild();
+      get().refreshExtendedFormat();
+    } catch (e) {
+      console.error("applyStyle failed:", e);
+    }
+  },
+
+  insertToc: (options) => {
+    const { doc, selection } = get();
+    if (!doc) return;
+    try {
+      get().pushUndo();
+      const sIdx = selection?.sectionIndex ?? 0;
+      const title = options.title?.trim() || "차례";
+      doc.addParagraph(title, { sectionIndex: sIdx, styleIdRef: 1 });
+
+      const maxLevel = Math.max(1, Math.min(9, options.maxLevel ?? 3));
+      const paras = doc.sections[sIdx]?.paragraphs ?? [];
+      const tocLines: string[] = [];
+      for (const para of paras) {
+        const level = para.outlineLevel;
+        if (level <= 0 || level > maxLevel) continue;
+        const indent = "  ".repeat(Math.max(0, level - 1));
+        const rawText = para.text.trim();
+        if (!rawText || rawText === title) continue;
+        tocLines.push(`${indent}${rawText}`);
+      }
+      if (tocLines.length === 0) {
+        doc.addParagraph("(개요 번호가 적용된 문단이 없습니다)", { sectionIndex: sIdx });
+      } else {
+        for (const line of tocLines) {
+          doc.addParagraph(line, { sectionIndex: sIdx });
+        }
+      }
+      get().rebuild();
+    } catch (e) {
+      console.error("insertToc failed:", e);
     }
   },
 
@@ -1492,6 +1620,37 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     });
   },
 
+  setHeaderFooter: ({ headerText, footerText }) => {
+    const { doc, selection } = get();
+    if (!doc) return;
+    try {
+      const sIdx = selection?.sectionIndex ?? 0;
+      const section = doc.sections[sIdx];
+      if (!section) return;
+      get().pushUndo();
+      if (headerText !== undefined) section.properties.setHeaderText(headerText);
+      if (footerText !== undefined) section.properties.setFooterText(footerText);
+      get().rebuild();
+    } catch (e) {
+      console.error("setHeaderFooter failed:", e);
+    }
+  },
+
+  insertShape: (shapeType, widthMm, heightMm) => {
+    const { doc, selection } = get();
+    if (!doc) return;
+    try {
+      const sIdx = selection?.sectionIndex ?? 0;
+      get().pushUndo();
+      // Fallback implementation until native shape API is exposed.
+      const label = `[${shapeType} ${Math.round(widthMm)}x${Math.round(heightMm)}mm]`;
+      doc.addParagraph(label, { sectionIndex: sIdx });
+      get().rebuild();
+    } catch (e) {
+      console.error("insertShape failed:", e);
+    }
+  },
+
   // Page setup actions
   updatePageSize: (width, height) => {
     const { doc, selection } = get();
@@ -1678,6 +1837,36 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     }
   },
 
+  setSelectedCellsSize: (widthMm, heightMm) => {
+    const { doc, selection } = get();
+    if (!doc || !selection || selection.tableIndex == null || selection.row == null || selection.col == null) return;
+    try {
+      get().pushUndo();
+      const section = doc.sections[selection.sectionIndex];
+      if (!section) return;
+      const para = section.paragraphs[selection.paragraphIndex];
+      if (!para) return;
+      const table = para.tables[selection.tableIndex];
+      if (!table) return;
+      const cell = table.cell(selection.row, selection.col);
+      cell.setSize(
+        widthMm == null ? undefined : mmToHwp(widthMm),
+        heightMm == null ? undefined : mmToHwp(heightMm)
+      );
+      get().rebuild();
+    } catch (e) {
+      console.error("setSelectedCellsSize failed:", e);
+    }
+  },
+
+  mergeSelectedCells: () => {
+    get().mergeTableCells();
+  },
+
+  unmergeSelectedCells: () => {
+    get().splitTableCell();
+  },
+
   // File operations
   openFile: () => {
     window.dispatchEvent(new CustomEvent("hwpx-open-file"));
@@ -1810,6 +1999,22 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       get().rebuild();
     } catch (e) {
       console.error("insertTab failed:", e);
+    }
+  },
+
+  findAndReplace: (search, replacement, count) => {
+    const { doc } = get();
+    if (!doc || !search) return 0;
+    try {
+      get().pushUndo();
+      const replaced = doc.replaceText(search, replacement, count);
+      if (replaced > 0) {
+        get().rebuild();
+      }
+      return replaced;
+    } catch (e) {
+      console.error("findAndReplace failed:", e);
+      return 0;
     }
   },
 

@@ -11,7 +11,7 @@ export function FindReplaceDialog() {
   const closeFindReplaceDialog = useEditorStore((s) => s.closeFindReplaceDialog);
   const findAndReplace = useEditorStore((s) => s.findAndReplace);
 
-  const [activeTab, setActiveTab] = useState<"find" | "replace">("find");
+  const [activeTab, setActiveTab] = useState(0);
   const [findText, setFindText] = useState("");
   const [replaceText, setReplaceText] = useState("");
   const [matchCase, setMatchCase] = useState(false);
@@ -65,12 +65,9 @@ export function FindReplaceDialog() {
       width={420}
     >
       <DialogTabs
-        tabs={[
-          { id: "find", label: "찾기" },
-          { id: "replace", label: "바꾸기" },
-        ]}
+        tabs={["찾기", "바꾸기"]}
         activeTab={activeTab}
-        onTabChange={(id) => setActiveTab(id as "find" | "replace")}
+        onTabChange={setActiveTab}
       />
 
       <div className="space-y-3 mt-3">
@@ -86,14 +83,14 @@ export function FindReplaceDialog() {
             onKeyDown={(e) => {
               if (e.key === "Enter") {
                 e.preventDefault();
-                if (activeTab === "find") handleFind();
+                if (activeTab === 0) handleFind();
                 else handleReplace();
               }
             }}
           />
         </div>
 
-        {activeTab === "replace" && (
+        {activeTab === 1 && (
           <div>
             <label className="block text-xs text-gray-600 mb-1">바꿀 내용</label>
             <input
@@ -145,7 +142,7 @@ export function FindReplaceDialog() {
         )}
 
         <div className="flex gap-2 pt-2">
-          {activeTab === "find" ? (
+          {activeTab === 0 ? (
             <>
               <button
                 className={primaryBtnClass}

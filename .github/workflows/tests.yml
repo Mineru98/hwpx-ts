@@ -7,7 +7,7 @@ on:
   pull_request:
 
 jobs:
-  verify:
+  verify-node:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -22,3 +22,22 @@ jobs:
       - run: pnpm --filter @ubermensch1218/hwpxcore typecheck
       - run: pnpm --filter @ubermensch1218/hwpxcore test
       - run: pnpm --filter @ubermensch1218/hwpxcore build
+      - run: pnpm --filter @ubermensch1218/hwpx-tools typecheck
+      - run: pnpm --filter @ubermensch1218/hwpx-tools test
+      - run: pnpm --filter @ubermensch1218/hwpx-tools build
+      - run: pnpm --filter @ubermensch1218/hwpx-cli typecheck
+      - run: pnpm --filter @ubermensch1218/hwpx-cli build
+      - run: pnpm --filter @ubermensch1218/hwpx-mcp typecheck
+      - run: pnpm --filter @ubermensch1218/hwpx-mcp build
+      - run: pnpm --filter @ubermensch1218/hwpxeditor exec tsc --noEmit
+
+  verify-python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install -e .[test]
+      - run: pytest -q

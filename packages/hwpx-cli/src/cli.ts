@@ -1,6 +1,7 @@
 import { Command } from "commander";
 import {
   openHwpxFile,
+  batchIndexHwpx,
   exportToMarkdownBundle,
   exportToText,
   exportSectionText,
@@ -13,9 +14,11 @@ import {
   type MarkdownImageMode,
   type TextExportOptions,
 } from "@ubermensch1218/hwpx-tools";
-import { mkdir, writeFile } from "fs/promises";
+import { mkdir, stat, writeFile } from "fs/promises";
 import { basename, dirname, extname, relative, resolve } from "path";
 import { handleMcpConfig, type McpConfigOptions } from "./commands/mcp-config.js";
+import { handleInit, type InitOptions } from "./commands/init.js";
+import { promptStar } from "./commands/star.js";
 
 export interface ReadOptions {
   section?: number;
@@ -40,6 +43,19 @@ export interface HwpxToMdOptions {
 
 export interface HwpToHwpxOptions {
   output?: string;
+}
+
+export interface BatchIndexOptions {
+  output?: string;
+  format?: "jsonl" | "json";
+  chunkBy?: "paragraph" | "section" | "document";
+  maxChars?: number;
+  includeEmpty?: boolean;
+  failFast?: boolean;
+  incremental?: boolean;
+  statePath?: string;
+  schema?: boolean;
+  json?: boolean;
 }
 
 function parseImageMode(value: string | undefined, fallback: MarkdownImageMode): MarkdownImageMode {
@@ -351,6 +367,131 @@ export function createProgram(): Command {
       }
     });
 
+  // batch command
+  const batch = program
+    .command("batch")
+    .description("Batch operations for multiple HWPX files");
+
+  batch
+    .command("index <input>")
+    .description("Index one or many HWPX files into AI-ready chunks")
+    .option("-o, --output <file>", "Output file path (default: <input>/hwpx-index.jsonl)")
+    .option("--format <format>", "Output format: jsonl or json", "jsonl")
+    .option("--chunk-by <mode>", "Chunk strategy: paragraph, section, document", "paragraph")
+    .option("--max-chars <number>", "Maximum characters per chunk", (value) => parseInt(value, 10), 1200)
+    .option("--include-empty", "Include empty chunks")
+    .option("--fail-fast", "Stop at the first failed file")
+    .option("--incremental", "Re-index only changed files using state cache")
+    .option("--state-path <file>", "Index state file path (default: <output>.state.json)")
+    .option("--schema", "Print output record schema and exit")
+    .option("--json", "Print summary as JSON to stdout")
+    .action(async (input: string, options: BatchIndexOptions) => {
+      if (options.schema) {
+        const schema = {
+          id: "sha256(relativePath|chunkBy|position|chunkIndex|text)",
+          sourcePath: "absolute path",
+          relativePath: "path relative to input base",
+          sourceFile: "basename",
+          chunkBy: "paragraph|section|document",
+          chunkIndex: "number",
+          sectionIndex: "number|null",
+          paragraphIndex: "number|null",
+          text: "normalized chunk text",
+          metadata: {
+            title: "string|null",
+            author: "string|null",
+            date: "string|null",
+            sections: "number",
+            paragraphs: "number",
+            indexedAt: "ISO datetime",
+          },
+        };
+        console.log(JSON.stringify(schema, null, 2));
+        return;
+      }
+
+      const inputPath = resolve(input);
+      const format = options.format === "json" ? "json" : "jsonl";
+      const chunkBy =
+        options.chunkBy === "section" || options.chunkBy === "document"
+          ? options.chunkBy
+          : "paragraph";
+      const maxChars =
+        Number.isFinite(options.maxChars) && (options.maxChars ?? 0) > 0
+          ? Math.floor(options.maxChars as number)
+          : 1200;
+
+      try {
+        const inputStats = await stat(inputPath);
+        const baseDir = inputStats.isDirectory() ? inputPath : dirname(inputPath);
+        const outputPath = resolve(options.output ?? resolve(baseDir, "hwpx-index.jsonl"));
+        const statePath = resolve(options.statePath ?? `${outputPath}.state.json`);
+
+        const result = await batchIndexHwpx({
+          inputPath,
+          outputPath,
+          format,
+          chunkBy,
+          maxChars,
+          includeEmpty: !!options.includeEmpty,
+          failFast: !!options.failFast,
+          incremental: !!options.incremental,
+          statePath,
+        });
+
+        const summary = {
+          ok: result.ok,
+          command: result.command,
+          startedAt: result.startedAt,
+          finishedAt: result.finishedAt,
+          input: result.input,
+          output: result.output,
+          statePath: result.statePath,
+          format: result.format,
+          chunkBy: result.chunkBy,
+          maxChars: result.maxChars,
+          incremental: result.incremental,
+          scannedFiles: result.scannedFiles,
+          indexedFiles: result.indexedFiles,
+          skippedFiles: result.skippedFiles,
+          failedFiles: result.failedFiles,
+          chunkCount: result.chunkCount,
+          failures: result.failures,
+        };
+
+        if (options.json) {
+          console.log(JSON.stringify(summary, null, 2));
+        } else {
+          console.error(`Indexed files: ${result.indexedFiles}/${result.scannedFiles}`);
+          if (result.incremental) {
+            console.error(`Skipped files (unchanged): ${result.skippedFiles}`);
+          }
+          console.error(`Chunks written: ${result.chunkCount}`);
+          console.error(`Output: ${result.output}`);
+          console.error(`State: ${result.statePath}`);
+          if (result.failures.length > 0) {
+            console.error(`Failed files: ${result.failures.length}`);
+            for (const failure of result.failures) {
+              console.error(`- ${failure.file}: ${failure.error}`);
+            }
+          }
+        }
+
+        if (result.failedFiles > 0 && result.indexedFiles > 0) {
+          process.exit(4);
+        }
+        if (result.failedFiles > 0 && result.indexedFiles === 0) {
+          process.exit(2);
+        }
+      } catch (error) {
+        console.error(
+          "Error indexing files:",
+          error instanceof Error ? error.message : String(error)
+        );
+        process.exit(1);
+      }
+    });
+
   // info command
   program
     .command("info <file>")
@@ -372,12 +513,27 @@ export function createProgram(): Command {
       }
     });
 
+  // init command
+  program
+    .command("init")
+    .description("Quick-start project setup (install deps, configure MCP, create example)")
+    .option("-y, --yes", "Accept all defaults without prompting")
+    .option("--skip-install", "Skip package installation")
+    .option("--skip-mcp", "Skip MCP server configuration")
+    .option("--skip-example", "Skip example file creation")
+    .action(async (options: InitOptions) => {
+      await handleInit(options);
+    });
+
   // mcp-config command
   program
     .command("mcp-config")
-    .description("Configure hwpx MCP server for Claude Code")
+    .description("Configure hwpx MCP server for Claude Code or OpenClaw")
     .option("-g, --global", "Configure globally (default)", true)
     .option("-p, --project", "Configure for current project only")
+    .option("-t, --target <client>", "MCP client target: claude or openclaw", "claude")
+    .option("--config-path <path>", "Custom MCP config file path")
+    .option("--print", "Print JSON config without writing files")
     .option("-l, --list", "List configured MCP servers")
     .option("-r, --remove", "Remove hwpx from MCP configuration")
     .action((options: McpConfigOptions) => {

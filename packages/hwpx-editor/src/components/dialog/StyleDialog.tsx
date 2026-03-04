@@ -23,20 +23,18 @@ export function StyleDialog() {
   useEffect(() => {
     if (uiState.styleDialogOpen && doc) {
       try {
-        const headers = doc.oxml.headers;
         const styleList: StyleItem[] = [];
-        for (const header of headers) {
-          const refList = header.refList;
-          if (refList?.styles?.styles) {
-            for (const style of refList.styles.styles) {
-              if (style.id != null && style.name) {
-                styleList.push({
-                  id: String(style.id),
-                  name: style.name,
-                  type: style.type ?? "para",
-                });
-              }
-            }
+        const seen = new Set<string>();
+        for (const section of doc.sections) {
+          for (const para of section.paragraphs) {
+            const styleId = para.styleIdRef;
+            if (!styleId || seen.has(styleId)) continue;
+            seen.add(styleId);
+            styleList.push({
+              id: styleId,
+              name: `스타일 ${styleId}`,
+              type: "para",
+            });
           }
         }
         setStyles(styleList);

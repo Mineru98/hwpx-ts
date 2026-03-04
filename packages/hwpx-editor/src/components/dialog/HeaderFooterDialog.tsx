@@ -17,7 +17,7 @@ export function HeaderFooterDialog() {
   const sectionIdx = selection?.sectionIndex ?? 0;
   const section = viewModel?.sections[sectionIdx];
 
-  const [activeTab, setActiveTab] = useState<"header" | "footer">("header");
+  const [activeTab, setActiveTab] = useState(0);
   const [headerText, setHeaderText] = useState(section?.headerText ?? "");
   const [footerText, setFooterText] = useState(section?.footerText ?? "");
   const [headerPosition, setHeaderPosition] = useState<"left" | "center" | "right">("center");
@@ -36,7 +36,7 @@ export function HeaderFooterDialog() {
   };
 
   const insertPlaceholder = (placeholder: string) => {
-    if (activeTab === "header") {
+    if (activeTab === 0) {
       setHeaderText((prev) => prev + placeholder);
     } else {
       setFooterText((prev) => prev + placeholder);
@@ -57,15 +57,12 @@ export function HeaderFooterDialog() {
       width={480}
     >
       <DialogTabs
-        tabs={[
-          { id: "header", label: "머리말" },
-          { id: "footer", label: "꼬리말" },
-        ]}
+        tabs={["머리말", "꼬리말"]}
         activeTab={activeTab}
-        onTabChange={(id) => setActiveTab(id as "header" | "footer")}
+        onTabChange={setActiveTab}
       />
 
-      {activeTab === "header" && (
+      {activeTab === 0 && (
         <DialogSection title="머리말 내용">
           <textarea
             value={headerText}
@@ -117,7 +114,7 @@ export function HeaderFooterDialog() {
         </DialogSection>
       )}
 
-      {activeTab === "footer" && (
+      {activeTab === 1 && (
         <DialogSection title="꼬리말 내용">
           <textarea
             value={footerText}
