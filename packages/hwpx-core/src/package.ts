@@ -575,6 +575,59 @@ export class HwpxPackage {
     return itemId;
   }
 
+  addMasterPageToManifest(partPath: string): void {
+    const manifestDoc = this.manifestTree();
+    const root = manifestDoc.documentElement;
+
+    let manifestEl: Element | null = null;
+    const walk = (node: Element): void => {
+      const children = node.childNodes;
+      for (let i = 0; i < children.length; i++) {
+        const child = children.item(i);
+        if (child && child.nodeType === 1) {
+          const el = child as Element;
+          const tag = el.localName ?? el.tagName;
+          if (tag === "manifest") {
+            manifestEl = el;
+            return;
+          }
+          walk(el);
+        }
+      }
+    };
+    walk(root);
+
+    if (!manifestEl) return;
+
+    const fileName = partPath.split("/").pop() ?? partPath;
+    const itemId = fileName.replace(/\.xml$/, "");
+    const children = (manifestEl as Element).childNodes;
+    for (let i = 0; i < children.length; i++) {
+      const child = children.item(i);
+      if (child && child.nodeType === 1) {
+        const el = child as Element;
+        if (el.getAttribute("id") === itemId || el.getAttribute("href") === partPath) return;
+      }
+    }
+
+    const item = manifestDoc.createElementNS(_OPF_NS, "opf:item");
+    item.setAttribute("id", itemId);
+    item.setAttribute("href", partPath);
+    item.setAttribute("media-type", "application/xml");
+    item.setAttribute("properties", "application/hwpml-master-page+xml");
+    (manifestEl as Element).appendChild(item);
+
+    const xml = serializeXml(manifestDoc as unknown as Node);
+    this._parts.set(HwpxPackage.MANIFEST_PATH, new TextEncoder().encode(xml));
+    this._spineCache = null;
+    this._sectionPathsCache = null;
+    this._headerPathsCache = null;
+    this._masterPagePathsCache = null;
+    this._historyPathsCache = null;
+    this._versionPathCache = null;
+    this._versionPathCacheResolved = false;
+  }
+
   // -- Saving --
 
   async save(updates?: Record<string, Uint8Array | string>): Promise<Uint8Array> {

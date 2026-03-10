@@ -423,6 +423,12 @@ export class HwpxOxmlDocument {
     return result;
   }
 
+  addMasterPage(masterPage: HwpxOxmlMasterPage): void {
+    masterPage.attachDocument(this);
+    masterPage.markDirty();
+    this._masterPages.push(masterPage);
+  }
+
   addParagraph(text: string = "", opts?: {
     section?: HwpxOxmlSection;
     sectionIndex?: number;

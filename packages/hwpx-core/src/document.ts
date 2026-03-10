@@ -25,6 +25,9 @@ import type {
   TrackChangeAuthor,
 } from "./oxml/header.js";
 import type { GenericElement } from "./oxml/common.js";
+import type { HwpxMeasuredImage } from "./image-utils.js";
+import { measureImage as measureImageData } from "./image-utils.js";
+import type { HwpxCellImagePreset } from "./image-operations.js";
 import { __version__ } from "./version.js";
 
 export interface DocumentVersionInfo {
@@ -50,6 +53,7 @@ export class HwpxDocument {
   private _package: HwpxPackage;
   private _oxml: HwpxOxmlDocument;
   private _closed = false;
+  _imagePresets = new Map<string, HwpxCellImagePreset>();
 
   constructor(pkg: HwpxPackage, oxml: HwpxOxmlDocument) {
     this._package = pkg;
@@ -343,6 +347,42 @@ export class HwpxDocument {
     });
 
     return para;
+  }
+
+  registerImageAsset(
+    imageData: Uint8Array,
+    opts: { mediaType: string; extension?: string },
+  ): string {
+    this._assertOpen();
+    return this._package.addBinaryItem(imageData, opts);
+  }
+
+  setImagePreset(name: string, preset: HwpxCellImagePreset): void {
+    this._assertOpen();
+    const key = name.trim();
+    if (!key) throw new Error("preset name must be non-empty");
+    this._imagePresets.set(key, { ...preset });
+  }
+
+  getImagePreset(name: string): HwpxCellImagePreset | null {
+    this._assertOpen();
+    const preset = this._imagePresets.get(name.trim());
+    return preset ? { ...preset } : null;
+  }
+
+  removeImagePreset(name: string): boolean {
+    this._assertOpen();
+    return this._imagePresets.delete(name.trim());
+  }
+
+  listImagePresets(): string[] {
+    this._assertOpen();
+    return Array.from(this._imagePresets.keys()).sort();
+  }
+
+  measureImage(imageData: Uint8Array): HwpxMeasuredImage | null {
+    this._assertOpen();
+    return measureImageData(imageData);
   }
 
   // ── Equation insertion ──────────────────────────────────────────────

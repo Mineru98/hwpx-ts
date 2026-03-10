@@ -52,6 +52,23 @@ export interface ColumnLayout {
   columns?: { width: number; gap: number }[];
 }
 
+export interface PageBorderFillOffset {
+  left: number;
+  right: number;
+  top: number;
+  bottom: number;
+}
+
+export interface PageBorderFill {
+  type: string;
+  borderFillIDRef: number;
+  textBorder: string;
+  headerInside: boolean;
+  footerInside: boolean;
+  fillArea: string;
+  offset: PageBorderFillOffset;
+}
+
 export interface DocumentNumbering {
   page: number;
   footnote: number;

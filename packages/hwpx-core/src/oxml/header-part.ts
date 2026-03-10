@@ -6,6 +6,7 @@ import type { DocumentNumbering } from "./types.js";
 import type { HwpxOxmlDocument } from "./document.js";
 import {
   HH_NS,
+  HC_NS,
   serializeXmlBytes,
   getIntAttr,
   findChild,
@@ -16,6 +17,8 @@ import {
   createBasicBorderFillElement,
   parseBorderFillElement,
   createBorderFillElement,
+  createImageBorderFill,
+  borderFillHasImageBrush,
   type BorderStyle,
   type BorderFillInfo,
 } from "./xml-utils.js";
@@ -162,6 +165,29 @@ export class HwpxOxmlHeader {
     // Create new borderFill
     const newId = this._allocateBorderFillId(container);
     container.appendChild(createBorderFillElement(doc, newId, newInfo));
+    this._updateBorderFillsItemCount(container);
+    this.markDirty();
+    return newId;
+  }
+
+  ensureImageBorderFill(binaryItemIdRef: string): string {
+    const container = this._borderFillsElement(true)!;
+
+    for (const child of findAllChildren(container, HH_NS, "borderFill")) {
+      if (!borderFillHasImageBrush(child)) continue;
+      const imgBrush = findChild(child, HC_NS, "imgBrush");
+      if (!imgBrush) continue;
+      const img = findChild(imgBrush, HC_NS, "img");
+      if (!img) continue;
+      if (img.getAttribute("binaryItemIDRef") === binaryItemIdRef) {
+        const id = child.getAttribute("id");
+        if (id) return id;
+      }
+    }
+
+    const newId = this._allocateBorderFillId(container);
+    const doc = container.ownerDocument!;
+    container.appendChild(createImageBorderFill(doc, newId, binaryItemIdRef));
     this._updateBorderFillsItemCount(container);
     this.markDirty();
     return newId;

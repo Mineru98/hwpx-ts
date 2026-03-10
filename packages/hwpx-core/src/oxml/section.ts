@@ -3,7 +3,13 @@
  * HwpxOxmlSectionProperties, HwpxOxmlSection.
  */
 
-import type { PageSize, PageMargins, SectionStartNumbering, ColumnLayout } from "./types.js";
+import type {
+  PageSize,
+  PageMargins,
+  SectionStartNumbering,
+  ColumnLayout,
+  PageBorderFill,
+} from "./types.js";
 import type { HwpxOxmlDocument } from "./document.js";
 import { HwpxOxmlParagraph } from "./paragraph.js";
 import { HwpxOxmlMemo, HwpxOxmlMemoGroup } from "./memo.js";
@@ -421,6 +427,120 @@ export class HwpxOxmlSectionProperties {
     }
 
     if (changed) this.section.markDirty();
+  }
+
+  get pageBorderFills(): PageBorderFill[] {
+    const results: PageBorderFill[] = [];
+    for (const el of findAllChildren(this.element, HP_NS, "pageBorderFill")) {
+      results.push(this._parsePageBorderFill(el));
+    }
+    return results;
+  }
+
+  setPageBorderFill(opts: {
+    type?: string;
+    borderFillIDRef: number;
+    textBorder?: string;
+    headerInside?: boolean;
+    footerInside?: boolean;
+    fillArea?: string;
+    offset?: { left?: number; right?: number; top?: number; bottom?: number };
+  }): void {
+    const type = opts.type ?? "BOTH";
+    let el: Element | null = null;
+    for (const candidate of findAllChildren(this.element, HP_NS, "pageBorderFill")) {
+      if ((candidate.getAttribute("type") ?? "BOTH") === type) {
+        el = candidate;
+        break;
+      }
+    }
+
+    if (!el) {
+      el = subElement(this.element, HP_NS, "pageBorderFill", {
+        type,
+        borderFillIDRef: String(opts.borderFillIDRef),
+        textBorder: opts.textBorder ?? "PAPER",
+        headerInside: opts.headerInside === true ? "1" : "0",
+        footerInside: opts.footerInside === true ? "1" : "0",
+        fillArea: opts.fillArea ?? "PAPER",
+      });
+      subElement(el, HP_NS, "offset", {
+        left: String(opts.offset?.left ?? 1417),
+        right: String(opts.offset?.right ?? 1417),
+        top: String(opts.offset?.top ?? 1417),
+        bottom: String(opts.offset?.bottom ?? 1417),
+      });
+      this.section.markDirty();
+      return;
+    }
+
+    let changed = false;
+    const setAttr = (name: string, value: string) => {
+      if (el!.getAttribute(name) !== value) {
+        el!.setAttribute(name, value);
+        changed = true;
+      }
+    };
+
+    setAttr("borderFillIDRef", String(opts.borderFillIDRef));
+    if (opts.textBorder != null) setAttr("textBorder", opts.textBorder);
+    if (opts.headerInside != null) setAttr("headerInside", opts.headerInside ? "1" : "0");
+    if (opts.footerInside != null) setAttr("footerInside", opts.footerInside ? "1" : "0");
+    if (opts.fillArea != null) setAttr("fillArea", opts.fillArea);
+
+    if (opts.offset) {
+      let offsetEl = findChild(el, HP_NS, "offset");
+      if (!offsetEl) {
+        offsetEl = subElement(el, HP_NS, "offset", {
+          left: String(opts.offset.left ?? 1417),
+          right: String(opts.offset.right ?? 1417),
+          top: String(opts.offset.top ?? 1417),
+          bottom: String(opts.offset.bottom ?? 1417),
+        });
+        changed = true;
+      } else {
+        for (const [name, value] of Object.entries(opts.offset) as [string, number | undefined][]) {
+          if (value == null) continue;
+          const textValue = String(value);
+          if (offsetEl.getAttribute(name) !== textValue) {
+            offsetEl.setAttribute(name, textValue);
+            changed = true;
+          }
+        }
+      }
+    }
+
+    if (changed) this.section.markDirty();
+  }
+
+  removePageBorderFill(type: string = "BOTH"): void {
+    let removed = false;
+    for (const el of findAllChildren(this.element, HP_NS, "pageBorderFill")) {
+      if ((el.getAttribute("type") ?? "BOTH") === type) {
+        this.element.removeChild(el);
+        removed = true;
+        break;
+      }
+    }
+    if (removed) this.section.markDirty();
+  }
+
+  private _parsePageBorderFill(el: Element): PageBorderFill {
+    const offsetEl = findChild(el, HP_NS, "offset");
+    return {
+      type: el.getAttribute("type") ?? "BOTH",
+      borderFillIDRef: getIntAttr(el, "borderFillIDRef", 0),
+      textBorder: el.getAttribute("textBorder") ?? "PAPER",
+      headerInside: el.getAttribute("headerInside") === "1",
+      footerInside: el.getAttribute("footerInside") === "1",
+      fillArea: el.getAttribute("fillArea") ?? "PAPER",
+      offset: {
+        left: offsetEl ? getIntAttr(offsetEl, "left", 1417) : 1417,
+        right: offsetEl ? getIntAttr(offsetEl, "right", 1417) : 1417,
+        top: offsetEl ? getIntAttr(offsetEl, "top", 1417) : 1417,
+        bottom: offsetEl ? getIntAttr(offsetEl, "bottom", 1417) : 1417,
+      },
+    };
   }
 
   // -- Header/Footer helpers --
